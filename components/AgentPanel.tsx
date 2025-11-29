@@ -26,7 +26,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({ agents, onBuildPanel, is
            <h3 className="font-bold text-gray-900">Your Evaluation Crew</h3>
            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">Active</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {agents.map(agent => (
             <div key={agent.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-purple-200 transition-colors">
               <div className="text-2xl bg-white w-10 h-10 flex items-center justify-center rounded-full shadow-sm">
@@ -54,7 +54,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({ agents, onBuildPanel, is
           </div>
           <p className="text-sm text-gray-600 mb-4">
             Describe your target role (e.g., "Senior Product Manager in Fintech"). 
-            Our Dispatcher will recruit 3 expert agents to evaluate your job matches.
+            Our Dispatcher will automatically recruit a specialized 4-agent crew to evaluate your job matches.
           </p>
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input

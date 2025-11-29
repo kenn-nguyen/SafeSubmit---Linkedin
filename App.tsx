@@ -16,6 +16,7 @@ const App: React.FC = () => {
   // Persistent State
   const [resumeText, setResumeText] = useState<string | null>(null);
   const [resumeName, setResumeName] = useState<string | null>(null);
+  const [userIntent, setUserIntent] = useState<string>(''); // User's career goal/intent
 
   // Core Data
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -71,60 +72,110 @@ const App: React.FC = () => {
     if (isGlobalBusy) return; 
     
     setIsProcessingResume(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = typeof e.target?.result === 'string' ? e.target.result : '';
-      setTimeout(() => {
-        setResumeText(text);
-        setResumeName(file.name);
-        localStorage.setItem('safesubmit_resume', text);
-        localStorage.setItem('safesubmit_resume_name', file.name);
-        
-        // --- SOFT RESET LOGIC ---
-        // 1. Clear Agents: Old agents are biased towards the old resume.
-        setAgents([]);
-        
-        // 2. Reset Jobs: Old scores are invalid for the new resume.
-        if (jobs.length > 0) {
-          setJobs(prevJobs => prevJobs.map(job => ({
-            ...job,
-            matchScore: undefined,
-            visaRisk: undefined,
-            reasoning: undefined,
-            evaluatedBy: undefined,
-            status: 'NEW', // Ready for re-analysis
-            generatedResume: undefined // Clear old generated resumes
-          })));
-          addLog(`Resume updated. Previous job analysis reset to ensure accuracy.`, 'warning');
-          addLog('Please recruit a new Agent Panel for this resume.', 'info');
-        } else {
-          addLog(`Resume uploaded: ${file.name}`, 'success');
-          addLog('Waiting for user to define target role for Agent Recruitment...', 'info');
-        }
+    
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
 
-        setIsProcessingResume(false);
-      }, 800); 
+    const processTextResume = (text: string) => {
+      setResumeText(text);
+      setResumeName(file.name);
+      localStorage.setItem('safesubmit_resume', text);
+      localStorage.setItem('safesubmit_resume_name', file.name);
+      
+      // --- SOFT RESET LOGIC ---
+      setAgents([]);
+      if (jobs.length > 0) {
+        setJobs(prevJobs => prevJobs.map(job => ({
+          ...job,
+          matchScore: undefined,
+          visaRisk: undefined,
+          reasoning: undefined,
+          evaluatedBy: undefined,
+          status: 'NEW',
+          generatedResume: undefined
+        })));
+        addLog(`Resume updated. Previous job analysis reset to ensure accuracy.`, 'warning');
+        addLog('Set your career goal and analyze jobs to recruit a new agent crew.', 'info');
+      } else {
+        addLog(`Resume uploaded: ${file.name}`, 'success');
+        addLog('Waiting for user to define target role for Agent Recruitment...', 'info');
+      }
+      setIsProcessingResume(false);
     };
-    reader.readAsText(file);
+
+    if (fileExtension === 'pdf') {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const arrayBuffer = e.target?.result as ArrayBuffer;
+          const base64Pdf = btoa(
+            new Uint8Array(arrayBuffer)
+              .reduce((data, byte) => data + String.fromCharCode(byte), '')
+          );
+          
+          addLog(`Uploading PDF: ${file.name}...`, 'info');
+          const response = await fetch('http://127.0.0.1:5002/resume/upload_pdf', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ pdf_base64: base64Pdf }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to process PDF on backend.');
+          }
+
+          const data = await response.json();
+          const extractedText = data.resumeText;
+
+          processTextResume(extractedText); // Use the common logic for setting state and soft reset
+
+        } catch (error) {
+          addLog(`Error processing PDF: ${error instanceof Error ? error.message : String(error)}`, 'error');
+          console.error("Error handling PDF upload:", error);
+          setResumeText(null); // Clear resume on error
+          setResumeName(null);
+          localStorage.removeItem('safesubmit_resume');
+          localStorage.removeItem('safesubmit_resume_name');
+        } finally {
+          setIsProcessingResume(false);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (fileExtension === 'txt' || fileExtension === 'md') { // Handle .txt and .md files
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = typeof e.target?.result === 'string' ? e.target.result : '';
+        processTextResume(text); // Use the common logic for setting state and soft reset
+      };
+      reader.readAsText(file);
+    } else {
+      addLog(`Unsupported file type: ${fileExtension}. Please upload a PDF, TXT, or MD file.`, 'error');
+      setIsProcessingResume(false);
+    }
   };
 
   const handleBuildAgents = async (intent: string) => {
-    if (!resumeText || isGlobalBusy) return; 
-    
+    if (!resumeText || isGlobalBusy) return;
+
     setIsBuildingAgents(true);
-    addLog(`Recruiting agent panel for: "${intent}"...`, 'info', 'Dispatcher');
-    
+    setUserIntent(intent);
+    addLog(`Career goal set: "${intent}". Recruiting agent panel...`, 'info', 'Dispatcher');
+
     try {
-      const recruitedAgents = await createAgentPanel(resumeText, intent);
-      setAgents(recruitedAgents);
-      
-      recruitedAgents.forEach(agent => {
-        addLog(`Onboarded ${agent.role} with focus on ${agent.focus}`, 'agent', agent.name);
-      });
-      
-      addLog('Agent Panel is ready. Start analysis.', 'success', 'Dispatcher');
+      const newAgents = await createAgentPanel(resumeText, intent);
+      if (newAgents.length > 0) {
+        setAgents(newAgents);
+        newAgents.forEach(agent => {
+          addLog(`Agent ${agent.name} (${agent.role}) recruited`, 'agent', agent.name);
+        });
+        addLog('Agent panel assembled and ready!', 'success', 'Dispatcher');
+      } else {
+        addLog('Failed to build agent panel. Using fallback.', 'warning');
+      }
     } catch (e) {
-      addLog('Failed to recruit agents. Please try again.', 'warning');
+      addLog('Failed to create agent panel. Please check backend logs.', 'error');
       console.error(e);
     } finally {
       setIsBuildingAgents(false);
@@ -156,13 +207,13 @@ const App: React.FC = () => {
   };
 
   const handleAnalyzeNextBatch = async () => {
-    if (!resumeText || isGlobalBusy) return; 
-    
-    if (agents.length === 0) {
-      alert("Please recruit your Agent Panel first!");
+    if (!resumeText || isGlobalBusy || agents.length === 0) return;
+
+    if (!userIntent) {
+      alert("Please set your career goal first!");
       return;
     }
-    
+
     const unanalyzedJobs = jobs.filter(j => j.status === 'NEW' || j.matchScore === undefined);
     if (unanalyzedJobs.length === 0) {
       addLog("No unanalyzed jobs found.", 'warning');
@@ -170,16 +221,15 @@ const App: React.FC = () => {
     }
 
     const batch = unanalyzedJobs.slice(0, AI_CONFIG.BATCH_SIZE);
-
     setIsBatchAnalyzing(true);
     addLog(`Dispatching batch of ${batch.length} jobs to the CrewAI pipeline...`, 'info');
 
     try {
-      // We pass a callback to update state progressively as the crew finishes each job
-      const results = await analyzeJobsInBatch(
-        resumeText, 
-        batch, 
-        agents, 
+      const response = await analyzeJobsInBatch(
+        resumeText,
+        userIntent,
+        batch,
+        agents, // Pass the pre-built agent panel
         addLog,
         (result: JobAnalysisResult) => {
           setJobs(prev => prev.map(j => j.id === result.id ? {
@@ -188,15 +238,15 @@ const App: React.FC = () => {
             visaRisk: result.visaRisk,
             reasoning: result.reasoning,
             evaluatedBy: result.evaluatedBy,
-            status: 'PROCESSING' // 'PROCESSING' indicates analyzed but resume not yet generated
+            status: 'PROCESSING'
           } : j));
         }
       );
 
-      if (results.length === 0) {
-         addLog('Analysis yielded no results or was aborted.', 'warning');
+      if (response.results.length === 0) {
+        addLog('Analysis yielded no results or was aborted.', 'warning');
       } else {
-        addLog(`Batch analysis complete. Evaluated ${results.length} jobs.`, 'success');
+        addLog(`Batch analysis complete. Evaluated ${response.results.length} jobs.`, 'success');
       }
     } catch (e) {
       addLog('Batch analysis failed unexpectedly.', 'warning');
@@ -234,8 +284,12 @@ const App: React.FC = () => {
     addLog(`Starting Resume Generation Crew for ${job.company}...`, 'info');
     
     try {
+      if (!userIntent) {
+        addLog('Please set your career goal before generating resumes.', 'warning');
+        return;
+      }
       // Pass addLog to visualize the Architect -> Writer -> Editor process
-      const generatedContent = await generateTailoredResume(resumeText, job, addLog);
+      const generatedContent = await generateTailoredResume(resumeText, userIntent, job, addLog);
       
       setJobs(prev => prev.map(j => j.id === jobId ? { 
         ...j, 
@@ -281,9 +335,9 @@ const App: React.FC = () => {
               </div>
             ) : (
               <FileUpload
-                label="Upload Resume PDF"
-                subLabel="We support PDF and TXT formats"
-                accept=".pdf,.txt"
+                label="Upload Resume"
+                subLabel="We support PDF, TXT, and Markdown formats"
+                accept=".pdf,.txt,.md"
                 onFileSelect={handleResumeUpload}
                 icon={<FileText size={32} />}
                 isActive={!isGlobalBusy}
@@ -325,14 +379,14 @@ const App: React.FC = () => {
         
         {/* 1. Agent Panel (Intent Config) */}
         <AgentPanel 
-          agents={agents} 
+          agents={agents} // Display agents once they're created by the backend crew
           onBuildPanel={handleBuildAgents} 
           isBuilding={isBuildingAgents}
           isDisabled={isGlobalBusy}
         />
 
         {/* 2. Job Import (Only if no jobs yet) */}
-        {!isJobImported && jobs.length === 0 && agents.length > 0 && (
+        {!isJobImported && jobs.length === 0 && userIntent && (
           <div className={`max-w-2xl mx-auto mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ${isGlobalBusy ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200 text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Data Ingestion</h2>
@@ -387,7 +441,7 @@ const App: React.FC = () => {
                  {unanalyzedCount > 0 && (
                    <button 
                      onClick={handleAnalyzeNextBatch}
-                     disabled={isGlobalBusy || agents.length === 0}
+                     disabled={isGlobalBusy || !userIntent}
                      className="flex items-center justify-center gap-2 px-5 py-2 text-sm font-bold text-white bg-primary-600 rounded-lg hover:bg-primary-700 shadow-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                    >
                      {isBatchAnalyzing ? (

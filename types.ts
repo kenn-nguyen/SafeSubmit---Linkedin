@@ -42,7 +42,7 @@ export interface LogEntry {
   id: string;
   timestamp: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'agent';
+  type: 'info' | 'success' | 'warning' | 'agent' | 'error';
   agentName?: string;
 }
 
