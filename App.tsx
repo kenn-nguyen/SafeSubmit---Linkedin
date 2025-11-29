@@ -6,7 +6,7 @@ import { ResumeWidget } from './components/ResumeWidget';
 import { LogBox } from './components/LogBox';
 import { AgentPanel } from './components/AgentPanel';
 import { parseCSV } from './services/csvParser';
-import { analyzeJobsInBatch, generateTailoredResume, createAgentPanel, JobAnalysisResult } from './services/geminiService';
+import { analyzeJobsInBatch, generateTailoredResume, createAgentPanel, JobAnalysisResult, API_BASE_URL } from './services/geminiService'; // Import API_BASE_URL
 import { Job, Agent, LogEntry } from './types';
 import { AI_CONFIG } from './constants';
 
@@ -113,7 +113,7 @@ const App: React.FC = () => {
           );
           
           addLog(`Uploading PDF: ${file.name}...`, 'info');
-          const response = await fetch('http://127.0.0.1:5002/resume/upload_pdf', {
+          const response = await fetch(`${API_BASE_URL}/resume/upload_pdf`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -144,10 +144,29 @@ const App: React.FC = () => {
       };
       reader.readAsArrayBuffer(file);
     } else if (fileExtension === 'txt' || fileExtension === 'md') { // Handle .txt and .md files
+      addLog(`Attempting to read text/markdown file: ${file.name}`, 'info');
       const reader = new FileReader();
       reader.onload = (e) => {
-        const text = typeof e.target?.result === 'string' ? e.target.result : '';
-        processTextResume(text); // Use the common logic for setting state and soft reset
+        addLog(`FileReader onload for ${file.name} triggered.`, 'info');
+        try {
+          const text = typeof e.target?.result === 'string' ? e.target.result : '';
+          addLog(`Processing text content for ${file.name}.`, 'info');
+          processTextResume(text); // Use the common logic for setting state and soft reset
+        } catch (error) {
+          addLog(`Error processing text file: ${error instanceof Error ? error.message : String(error)}`, 'error');
+          console.error("Error handling text file upload:", error);
+          setResumeText(null); // Clear resume on error
+          setResumeName(null);
+          localStorage.removeItem('safesubmit_resume');
+          localStorage.removeItem('safesubmit_resume_name');
+        } finally {
+          setIsProcessingResume(false);
+        }
+      };
+      reader.onerror = (e) => {
+        addLog(`Failed to read file: ${file.name}. Error: ${e.target?.error}`, 'error');
+        console.error("FileReader error:", e.target?.error);
+        setIsProcessingResume(false);
       };
       reader.readAsText(file);
     } else {
@@ -160,13 +179,13 @@ const App: React.FC = () => {
     if (!resumeText || isGlobalBusy) return;
 
     setIsBuildingAgents(true);
-    setUserIntent(intent);
     addLog(`Career goal set: "${intent}". Recruiting agent panel...`, 'info', 'Dispatcher');
 
     try {
       const newAgents = await createAgentPanel(resumeText, intent);
       if (newAgents.length > 0) {
         setAgents(newAgents);
+        setUserIntent(intent); // Set intent only upon successful agent creation
         newAgents.forEach(agent => {
           addLog(`Agent ${agent.name} (${agent.role}) recruited`, 'agent', agent.name);
         });
@@ -337,7 +356,7 @@ const App: React.FC = () => {
               <FileUpload
                 label="Upload Resume"
                 subLabel="We support PDF, TXT, and Markdown formats"
-                accept=".pdf,.txt,.md"
+                accept="application/pdf, text/plain, text/markdown, .pdf, .txt, .md"
                 onFileSelect={handleResumeUpload}
                 icon={<FileText size={32} />}
                 isActive={!isGlobalBusy}
@@ -386,7 +405,7 @@ const App: React.FC = () => {
         />
 
         {/* 2. Job Import (Only if no jobs yet) */}
-        {!isJobImported && jobs.length === 0 && userIntent && (
+        {!isJobImported && jobs.length === 0 && userIntent && agents.length > 0 && (
           <div className={`max-w-2xl mx-auto mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ${isGlobalBusy ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200 text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Data Ingestion</h2>

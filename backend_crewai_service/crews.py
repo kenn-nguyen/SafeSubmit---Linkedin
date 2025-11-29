@@ -19,10 +19,10 @@ load_dotenv()
 #   Uses a more powerful model for high-quality content creation
 #   Used for: resume writing, editing, and finalization
 # 
-# Set these in your .env file to override defaults.
-EVALUATION_MODEL_NAME = os.getenv("GEMINI_EVALUATION_MODEL_NAME", "gemini-2.5-flash")
-PANEL_CREATION_MODEL_NAME = os.getenv("GEMINI_PANEL_CREATION_MODEL_NAME", "gemini-2.5-pro")
-RESUME_MODEL_NAME = os.getenv("GEMINI_RESUME_MODEL_NAME", "gemini-2.5-pro")
+# Default model names (not loaded from .env)
+EVALUATION_MODEL_NAME = "gemini-2.5-flash"
+PANEL_CREATION_MODEL_NAME = "gemini-2.5-pro"
+RESUME_MODEL_NAME = "gemini-2.5-pro"
 
 # --- Utilities ---
 def clean_json(text: str) -> str:
@@ -228,6 +228,7 @@ def run_evaluation_crew(resume_text: str, user_intent: str, job: dict, agent_pan
             
         # The agent panel is now passed in, so it's no longer added here.
             # It will be handled at the batch level.
+        result_dict['id'] = job['id'] # Add the job ID to the result
         return result_dict
     except Exception as e:
         on_log(f"Evaluation crew failed for job '{job['title']}': {e}", 'error', 'Dispatcher')

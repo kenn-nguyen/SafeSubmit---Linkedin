@@ -4,7 +4,7 @@ import { Job, Agent } from "../types";
 // The prompts are now also handled by the Python backend.
 
 // Define the base URL for your Python Flask backend
-const API_BASE_URL = "http://localhost:5002";
+export const API_BASE_URL = "http://localhost:5002";
 
 export interface JobAnalysisResult {
   id: string;
@@ -35,7 +35,7 @@ export const createAgentPanel = async (resumeText: string, userIntent: string): 
 
     const data = await response.json();
     return data.agents || [];
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Agent Panel Creation Failed:", error);
     // Optionally, log this error to the UI
     return [];
@@ -84,9 +84,9 @@ export const analyzeJobsInBatch = async (
       results: data.results || []
     };
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Batch Analysis Fatal Error from backend:", error);
-    if (onLog) onLog(`Batch analysis failed: ${error.message}`, 'warning');
+    if (onLog) onLog(`Batch analysis failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
     return { results: [] };
   }
 };
@@ -116,9 +116,9 @@ export const generateTailoredResume = async (
     const generatedResume: string = data.generatedResume;
     if (onLog) onLog("Resume generation complete!", "success");
     return generatedResume;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Resume Generation Crew Failed from backend:", error);
-    if (onLog) onLog(`Resume generation failed: ${error.message}`, 'warning');
+    if (onLog) onLog(`Resume generation failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
     return "Failed to generate resume.";
   }
 };

@@ -49,17 +49,9 @@ def test_gemini():
     if not api_key:
         return jsonify({"error": "API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY not set"}), 500
     
-    # Check model names (matching crews.py configuration)
-    evaluation_model_name = os.getenv("GEMINI_EVALUATION_MODEL_NAME", "gemini-2.5-flash")
-    panel_creation_model_name = os.getenv("GEMINI_PANEL_CREATION_MODEL_NAME", "gemini-2.5-pro")
-    resume_model_name = os.getenv("GEMINI_RESUME_MODEL_NAME", "gemini-2.5-pro")
-
     return jsonify({
         "message": "API_KEY is set (though not verified)",
-        "api_key_first_5_chars": api_key[:5] if len(api_key) >= 5 else "*****",
-        "evaluation_model": evaluation_model_name,
-        "panel_creation_model": panel_creation_model_name,
-        "resume_model": resume_model_name
+        "api_key_first_5_chars": api_key[:5] if len(api_key) >= 5 else "*****"
     }), 200
 
 @app.route('/agents/create_panel', methods=['POST'])
@@ -143,17 +135,4 @@ if __name__ == '__main__':
         print("Please set one of these in your .env file or environment variables.")
         print("The server will start but API calls will fail without a valid key.")
 
-    # Set default model names if not in .env
-    # Evaluation crew: faster model for batch processing
-    os.environ.setdefault("GEMINI_EVALUATION_MODEL_NAME", "gemini-2.5-flash")
-    # Panel creation: more powerful model for intelligent crew assembly
-    os.environ.setdefault("GEMINI_PANEL_CREATION_MODEL_NAME", "gemini-2.5-pro")
-    # Resume generation crew: more powerful model for high-quality content
-    os.environ.setdefault("GEMINI_RESUME_MODEL_NAME", "gemini-2.5-pro")
-    
-    print(f"Configuration:")
-    print(f"  Evaluation Model: {os.getenv('GEMINI_EVALUATION_MODEL_NAME')}")
-    print(f"  Panel Creation Model: {os.getenv('GEMINI_PANEL_CREATION_MODEL_NAME')}")
-    print(f"  Resume Model: {os.getenv('GEMINI_RESUME_MODEL_NAME')}")
-    
     app.run(host='0.0.0.0', port=5002)

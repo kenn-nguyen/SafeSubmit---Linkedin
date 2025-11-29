@@ -34,13 +34,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   }, [isActive]);
 
   const validateAndSetFile = (file: File) => {
-    if (!file.type.match(accept.replace('*', '.*')) && accept !== '*') {
-       // Relaxed checking for CSV as MIME types vary
-       if (accept.includes('.csv') && !file.name.endsWith('.csv')) {
-         setError('Invalid file type.');
-         return;
-       }
+    const allowedExtensions = accept.split(',').map(ext => ext.trim().toLowerCase());
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+
+    // Check if the file extension is in the allowed list
+    // This allows for flexible MIME types while strictly checking extensions
+    if (!allowedExtensions.includes(fileExtension) && accept !== '*') {
+      setError('Invalid file type.');
+      return;
     }
+    
     setError(null);
     setSelectedFileName(file.name);
     onFileSelect(file);
