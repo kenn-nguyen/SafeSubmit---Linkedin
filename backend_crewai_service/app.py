@@ -2,11 +2,20 @@ import os
 import json
 import base64
 from io import BytesIO
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
+import traceback
 from flask_cors import CORS
 from dotenv import load_dotenv
 from pypdf import PdfReader
-from crews import build_evaluation_panel, run_evaluation_crew, run_resume_crew
+from crews import (
+    build_evaluation_panel,
+    run_evaluation_crew,
+    run_resume_crew,
+    build_resume_panel,
+    generate_evaluation_instructions,
+    run_evaluation_batch_llm,
+    run_resume_crew_streaming,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -59,6 +68,8 @@ def create_panel():
     data = request.json
     resume_text = data.get('resumeText')
     user_intent = data.get('userIntent')
+    job_payload = data.get('job') or {}
+    job_description = data.get('jobDescription') or job_payload.get('description') or user_intent
 
     if not all([resume_text, user_intent]):
         return jsonify({"error": "Missing resumeText or userIntent"}), 400
@@ -71,6 +82,9 @@ def create_panel():
         if not agent_panel:
              return jsonify({"error": "Failed to create agent panel"}), 500
         return jsonify({"agents": agent_panel}), 200
+    except ValueError as e:
+        status = 429 if "rate limit" in str(e).lower() or "quota" in str(e).lower() else 400
+        return jsonify({"error": str(e)}), status
     except Exception as e:
         print(f"Error creating agent panel: {e}")
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
@@ -98,12 +112,79 @@ def analyze_batch():
             on_log_with_job = make_logger(job_id)
 
             result = run_evaluation_crew(resume_text, user_intent, job, agent_panel, on_log_with_job)
+            print(f"[Backend Log - INFO] Dispatcher: (Job ID: {job_id}) Normalized result: {result}")
             results.append(result)
 
         # The agent panel is now managed by the frontend, so we don't return it here.
         return jsonify({"results": results}), 200
+    except ValueError as e:
+        print(f"Validation error during batch analysis: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         print(f"Error analyzing job batch: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+@app.route('/agents/create_resume_panel', methods=['POST'])
+def create_resume_panel():
+    data = request.json
+    resume_text = data.get('resumeText')
+    user_intent = data.get('userIntent')
+    job_payload = data.get('job') or {}
+    job_description = data.get('jobDescription') or job_payload.get('description') or user_intent
+
+    if not all([resume_text, user_intent]):
+        return jsonify({"error": "Missing resumeText or userIntent"}), 400
+
+    def backend_on_log(message: str, type: str, agent_name: str = "Backend"):
+        print(f"[Backend Log - {type.upper()}] {agent_name}: {message}")
+    
+    try:
+        panel = build_resume_panel(resume_text, user_intent, job_description, backend_on_log)
+        if not panel:
+            return jsonify({"error": "Failed to create resume panel"}), 500
+        return jsonify({"agents": panel}), 200
+    except ValueError as e:
+        status = 429 if "rate limit" in str(e).lower() or "quota" in str(e).lower() else 400
+        return jsonify({"error": str(e)}), status
+    except Exception as e:
+        print(f"Error creating resume panel: {e}")
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+@app.route('/instructions/evaluation', methods=['POST'])
+def create_evaluation_instructions():
+    data = request.json
+    resume_text = data.get('resumeText')
+    user_intent = data.get('userIntent')
+    if not all([resume_text, user_intent]):
+        return jsonify({"error": "Missing resumeText or userIntent"}), 400
+    try:
+        instructions = generate_evaluation_instructions(resume_text, user_intent)
+        return jsonify({"instructions": instructions}), 200
+    except Exception as e:
+        print(f"Error generating instructions: {e}")
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+@app.route('/jobs/evaluate_batch_v2', methods=['POST'])
+def evaluate_batch_v2():
+    data = request.json
+    resume_text = data.get('resumeText')
+    user_intent = data.get('userIntent')
+    jobs = data.get('jobs')
+    instructions = data.get('instructions')
+
+    if not all([resume_text, user_intent, jobs, instructions]):
+        return jsonify({"error": "Missing resumeText, userIntent, jobs, or instructions"}), 400
+
+    try:
+        results = run_evaluation_batch_llm(resume_text, user_intent, jobs, instructions)
+        return jsonify({"results": results}), 200
+    except ValueError as e:
+        status = 429 if "rate limit" in str(e).lower() or "quota" in str(e).lower() else 400
+        return jsonify({"error": str(e)}), status
+    except Exception as e:
+        print(f"Error in evaluate_batch_v2: {e}")
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
 
 @app.route('/resume/generate', methods=['POST'])
@@ -120,9 +201,19 @@ def generate_resume():
         print(f"[Backend Log - {type.upper()}] {agent_name}: {message}")
 
     try:
-        # The new autonomous crew handles its own panel creation.
-        generated_resume = run_resume_crew(resume_text, user_intent, job, backend_on_log)
-        return jsonify({"generatedResume": generated_resume}), 200
+        # Stream crew progress and final resume back to the frontend as JSONL
+        def event_stream():
+            try:
+                for chunk in run_resume_crew_streaming(resume_text, user_intent, job, backend_on_log):
+                    yield json.dumps(chunk) + "\n"
+            except Exception as e:
+                print(f"Streaming error: {e}")
+                yield json.dumps({"error": str(e)}) + "\n"
+
+        return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
+    except ValueError as e:
+        status = 429 if "rate limit" in str(e).lower() or "quota" in str(e).lower() else 400
+        return jsonify({"error": str(e)}), status
     except Exception as e:
         print(f"Error generating resume: {e}")
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500

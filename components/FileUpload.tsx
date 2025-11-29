@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useId, useState } from 'react';
 import { UploadCloud, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface FileUploadProps {
@@ -18,6 +18,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   icon,
   isActive = true
 }) => {
+  const inputId = useId();
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,11 +81,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       onDragLeave={handleDrag}
       onDragOver={handleDrag}
       onDrop={handleDrop}
-      onClick={() => document.getElementById(`file-input-${label}`)?.click()}
+      onClick={() => document.getElementById(inputId)?.click()}
     >
       <input
         type="file"
-        id={`file-input-${label}`}
+        id={inputId}
         className="hidden"
         accept={accept}
         onChange={handleChange}
