@@ -1,0 +1,5 @@
+{
+  "name": "SafeSubmit - Zero Friction",
+  "description": "A streamlined resume tailoring platform that ingests job data via CSV, analyzes visa risks, and uses Gemini AI to generate tailored resume PDFs.",
+  "requestFramePermissions": []
+}
