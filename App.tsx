@@ -268,6 +268,11 @@ const App: React.FC = () => {
     addLog('Resume cleared. Please upload a new resume to continue.', 'warning', 'Dispatcher');
   };
 
+  const handleIntentChange = (intent: string) => {
+    setUserIntent(intent);
+    setIntentConfirmed(false);
+  };
+
   const handleBuildAgents = async (intent: string) => {
     addLog(`Start clicked for target role: "${intent}".`, 'info', 'Dispatcher');
 
@@ -516,7 +521,6 @@ const App: React.FC = () => {
     } catch (e) {
       hadError = true;
       const message = e instanceof Error ? e.message : String(e);
-      errorMessage = message;
       const isRateLimited = message.toLowerCase().includes('rate limit') || message.toLowerCase().includes('quota');
       const userMessage = isRateLimited
         ? `Rate limit hit while generating resume for ${job.company}. Please wait a moment and try again.`
@@ -763,7 +767,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-  const handleIntentChange = (intent: string) => {
-    setUserIntent(intent);
-    setIntentConfirmed(false);
-  };

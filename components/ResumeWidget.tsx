@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
-import { FileText, RefreshCw, Lock } from 'lucide-react';
+import { FileText, RefreshCw, Lock, Trash2 } from 'lucide-react';
 
 interface ResumeWidgetProps {
   resumeName: string | null;
   onReupload: (file: File) => void;
+  onReset: () => void;
   isDisabled?: boolean;
 }
 
-export const ResumeWidget: React.FC<ResumeWidgetProps> = ({ resumeName, onReupload, isDisabled }) => {
+export const ResumeWidget: React.FC<ResumeWidgetProps> = ({ resumeName, onReupload, onReset, isDisabled }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -20,6 +21,13 @@ export const ResumeWidget: React.FC<ResumeWidgetProps> = ({ resumeName, onReuplo
   const handleClick = () => {
     if (!isDisabled) {
       document.getElementById('resume-reupload')?.click();
+    }
+  };
+
+  const handleReset = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isDisabled) {
+      onReset();
     }
   };
 
@@ -42,7 +50,7 @@ export const ResumeWidget: React.FC<ResumeWidgetProps> = ({ resumeName, onReuplo
         type="file" 
         id="resume-reupload" 
         className="hidden" 
-        accept=".pdf,.txt"
+        accept=".pdf,.txt,.md,.markdown,text/plain,text/markdown"
         onChange={handleFileChange}
         disabled={isDisabled}
       />
@@ -63,6 +71,16 @@ export const ResumeWidget: React.FC<ResumeWidgetProps> = ({ resumeName, onReuplo
       </div>
 
       <div className={`absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-white ${isDisabled ? 'bg-gray-400' : 'bg-green-500'}`}></div>
+
+      <button
+        type="button"
+        onClick={handleReset}
+        disabled={isDisabled}
+        className="ml-2 p-1 text-gray-400 hover:text-red-600 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+        title="Remove current resume"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 };

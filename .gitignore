@@ -25,3 +25,7 @@ dist-ssr
 
 # Sensitive files
 backend_crewai_service/.env
+
+# Python cache files
+__pycache__/
+*.pyc

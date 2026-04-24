@@ -4,14 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SafeSubmit</title>
+    <link rel="icon" type="image/svg+xml" href="/safety-icon.svg" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+              sans: ['Space Grotesk', 'sans-serif'],
             },
             colors: {
               gray: {
@@ -27,11 +28,28 @@
                 900: '#111827',
               },
               primary: {
-                50: '#eff6ff',
-                100: '#dbeafe',
-                500: '#3b82f6',
-                600: '#2563eb',
-                700: '#1d4ed8',
+                50: '#eef2ff',
+                100: '#e0e7ff',
+                200: '#c7d2fe',
+                300: '#a5b4fc',
+                400: '#818cf8',
+                500: '#6366f1',
+                600: '#4f46e5',
+                700: '#4338ca',
+                800: '#3730a3',
+                900: '#312e81',
+              },
+              accent: {
+                50: '#e6fffa',
+                100: '#b2f5ea',
+                200: '#7de6d8',
+                300: '#4fd1c5',
+                400: '#2cbaa6',
+                500: '#14a38b',
+                600: '#0f8c76',
+                700: '#0a705e',
+                800: '#08584b',
+                900: '#06463c',
               }
             }
           }
@@ -39,7 +57,7 @@
       }
     </script>
     <style>
-      body { font-family: 'Inter', sans-serif; }
+      body { font-family: 'Space Grotesk', sans-serif; }
     </style>
   <script type="importmap">
 {
@@ -53,7 +71,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-gray-900 antialiased">
+  <body class="bg-gradient-to-br from-[#f6f8ff] via-white to-[#f1fbf6] text-gray-900 antialiased">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
